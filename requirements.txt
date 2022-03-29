@@ -1,2 +1,4 @@
 requests==2.27.1
 environs==9.5.0
+python-telegram-bot==11.1.0
+redis==4.2.0

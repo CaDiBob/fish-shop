@@ -1,9 +1,9 @@
-import os
 import logging
 import redis
 from environs import Env
 
 import telegram
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Filters, Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 
@@ -24,14 +24,24 @@ class TelegramLogsHandler(logging.Handler):
         self.tg_bot.send_message(chat_id=self.chat_id, text=log_entry)
 
 
-def start(bot, update):
-    """
-    Хэндлер для состояния START.
+def button(bot, update):
+    query = update.callback_query
 
-    Бот отвечает пользователю фразой "Привет!" и переводит его в состояние ECHO.
-    Теперь в ответ на его команды будет запускаеться хэндлер echo.
-    """
-    update.message.reply_text(text='Привет!')
+    bot.edit_message_text(text="Selected option: {}".format(query.data),
+                          chat_id=query.message.chat_id,
+                          message_id=query.message.message_id)
+
+
+def start(bot, update):
+    keyboard = [[InlineKeyboardButton("Option 1", callback_data='1'),
+                 InlineKeyboardButton("Option 2", callback_data='2')],
+
+                [InlineKeyboardButton("Option 3", callback_data='3')]]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    update.message.reply_text('Please choose:', reply_markup=reply_markup)
+
     return "ECHO"
 
 
@@ -94,6 +104,10 @@ def get_database_connection():
         database_port = env('REDIS_PORT')
         _database = redis.Redis(host=database_host, port=database_port, password=database_password)
     return _database
+
+
+def get_buttons():
+    pass
 
 
 def error(update, context):

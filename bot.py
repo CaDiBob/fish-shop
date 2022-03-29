@@ -5,7 +5,9 @@ from environs import Env
 import telegram
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Filters, Updater
-from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
+from telegram.ext import CommandHandler, MessageHandler
+
+from moltin import get_products, get_moltin_access_token
 
 _database = None
 
@@ -24,19 +26,16 @@ class TelegramLogsHandler(logging.Handler):
         self.tg_bot.send_message(chat_id=self.chat_id, text=log_entry)
 
 
-def button(bot, update):
+def button(update, context):
+
     query = update.callback_query
-
-    bot.edit_message_text(text="Selected option: {}".format(query.data),
-                          chat_id=query.message.chat_id,
-                          message_id=query.message.message_id)
+    query.answer()
+    query.edit_message_text(text=f'Selected option: {query.data}')
 
 
-def start(bot, update):
-    keyboard = [[InlineKeyboardButton("Option 1", callback_data='1'),
-                 InlineKeyboardButton("Option 2", callback_data='2')],
-
-                [InlineKeyboardButton("Option 3", callback_data='3')]]
+def start(update, context):
+    products = context.bot_data['products']
+    keyboard = [[InlineKeyboardButton(product['name'], callback_data=product['id']) for product in products['data']]]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -45,86 +44,41 @@ def start(bot, update):
     return "ECHO"
 
 
-def echo(bot, update):
-    """
-    Хэндлер для состояния ECHO.
-
-    Бот отвечает пользователю тем же, что пользователь ему написал.
-    Оставляет пользователя в состоянии ECHO.
-    """
-    users_reply = update.message.text
-    update.message.reply_text(users_reply)
-    return "ECHO"
-
-
-def handle_users_reply(bot, update):
-    """
-    Функция, которая запускается при любом сообщении от пользователя и решает как его обработать.
-    Эта функция запускается в ответ на эти действия пользователя:
-        * Нажатие на inline-кнопку в боте
-        * Отправка сообщения боту
-        * Отправка команды боту
-    Она получает стейт пользователя из базы данных и запускает соответствующую функцию-обработчик (хэндлер).
-    Функция-обработчик возвращает следующее состояние, которое записывается в базу данных.
-    Если пользователь только начал пользоваться ботом, Telegram форсит его написать "/start",
-    поэтому по этой фразе выставляется стартовое состояние.
-    Если пользователь захочет начать общение с ботом заново, он также может воспользоваться этой командой.
-    """
-    db = get_database_connection()
-    if update.message:
-        user_reply = update.message.text
-        chat_id = update.message.chat_id
-    elif update.callback_query:
-        user_reply = update.callback_query.data
-        chat_id = update.callback_query.message.chat_id
-    else:
-        return
-    if user_reply == '/start':
-        user_state = 'START'
-    else:
-        user_state = db.get(chat_id).decode("utf-8")
-
-    states_functions = {
-        'START': start,
-        'ECHO': echo
-    }
-    state_handler = states_functions[user_state]
-    next_state = state_handler(bot, update)
-    db.set(chat_id, next_state)
-
-
-def get_database_connection():
-    """
-    Возвращает конекшн с базой данных Redis, либо создаёт новый, если он ещё не создан.
-    """
-    global _database
-    if _database is None:
-        database_password = env('REDIS_PASSWORD')
-        database_host = env('REDIS_HOST')
-        database_port = env('REDIS_PORT')
-        _database = redis.Redis(host=database_host, port=database_port, password=database_password)
-    return _database
-
-
-def get_buttons():
-    pass
+def echo(update, context):
+    update.message.reply_text(update.message.text)
 
 
 def error(update, context):
     logger.error(context.error)
 
 
-if __name__ == '__main__':
+def main():
     env = Env()
     env.read_env()
-    tg_token = env("TG_TOKEN")
+    db = redis.Redis(
+        host=env('REDIS_HOST'),
+        port=env('REDIS_PORT'),
+        password=env('REDIS_PASSWORD'),
+        decode_responses=True,
+    )
+    client_id = env('MOLTIN_CLIENT_ID')
+    tg_token = env('TG_TOKEN')
     tg_chat_id = env('TG_CHAT_ID')
+    access_token = get_moltin_access_token(client_id)
+    products = get_products(access_token)
     updater = Updater(tg_token)
     bot = telegram.Bot(token=tg_token)
     logger.addHandler(TelegramLogsHandler(tg_chat_id, bot))
     dispatcher = updater.dispatcher
-    dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
-    dispatcher.add_handler(MessageHandler(Filters.text, handle_users_reply))
-    dispatcher.add_handler(CommandHandler('start', handle_users_reply))
+    dispatcher.bot_data['products'] = products
+    dispatcher.add_handler(CommandHandler('start', start))
+    dispatcher.add_handler(MessageHandler(
+        Filters.text & ~Filters.command, echo
+    ))
     dispatcher.add_error_handler(error)
     updater.start_polling()
+    updater.idle()
+
+
+if __name__ == '__main__':
+    main()

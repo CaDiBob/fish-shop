@@ -3,13 +3,13 @@ import redis
 from environs import Env
 
 import telegram
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Filters, Updater
-from telegram.ext import CommandHandler, MessageHandler
+from telegram.ext import CommandHandler, MessageHandler, ConversationHandler, CallbackQueryHandler
 
-from moltin import get_products, get_moltin_access_token
+from moltin import get_products, get_moltin_access_token, get_product_detail
 
-_database = None
+HANDLE_MENU = 1
 
 logger = logging.getLogger('bot')
 
@@ -34,18 +34,37 @@ def button(update, context):
 
 
 def start(update, context):
+    bot = context.bot
+    user_id = update.effective_user.id
+    context.user_data['user_id'] = user_id
     products = context.bot_data['products']
     keyboard = [[InlineKeyboardButton(product['name'], callback_data=product['id']) for product in products['data']]]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-
-    update.message.reply_text('Please choose:', reply_markup=reply_markup)
-
-    return "ECHO"
+    bot.send_message(text='Please choose:', chat_id=user_id, reply_markup=reply_markup)
+    return HANDLE_MENU
 
 
-def echo(update, context):
-    update.message.reply_text(update.message.text)
+def handle_menu(update, context):
+    bot = context.bot
+    user_id = update.effective_user.id
+    access_token = context.bot_data['access_token']
+    product_id = update.callback_query.data
+    product_detail = get_product_detail(access_token, product_id)
+    bot.send_message(text=product_detail,
+                     chat_id=user_id,
+                     )
+    return HANDLE_MENU
+
+
+def cancel(update, context):
+    user = update.message.from_user
+    update.message.reply_text(
+        'Мое дело предложить - Ваше отказаться'
+        ' Будет скучно - пиши.',
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return ConversationHandler.END
 
 
 def error(update, context):
@@ -71,10 +90,20 @@ def main():
     logger.addHandler(TelegramLogsHandler(tg_chat_id, bot))
     dispatcher = updater.dispatcher
     dispatcher.bot_data['products'] = products
-    dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(MessageHandler(
-        Filters.text & ~Filters.command, echo
-    ))
+    dispatcher.bot_data['access_token'] = access_token
+    shop = ConversationHandler(
+        entry_points=[
+            CommandHandler('start', start)
+        ],
+        states={
+            HANDLE_MENU: [
+                CallbackQueryHandler(handle_menu),
+            ]
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+    )
+    dispatcher.add_handler(shop)
+
     dispatcher.add_error_handler(error)
     updater.start_polling()
     updater.idle()

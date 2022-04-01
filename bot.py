@@ -7,7 +7,12 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRe
 from telegram.ext import Filters, Updater
 from telegram.ext import CommandHandler, MessageHandler, ConversationHandler, CallbackQueryHandler
 
-from moltin import get_products, get_moltin_access_token, get_product_detail
+from moltin import (get_products,
+                    get_moltin_access_token,
+                    get_product_detail,
+                    get_product_info,
+                    get_img
+                    )
 
 HANDLE_MENU = 1
 
@@ -51,9 +56,12 @@ def handle_menu(update, context):
     access_token = context.bot_data['access_token']
     product_id = update.callback_query.data
     product_detail = get_product_detail(access_token, product_id)
-    bot.send_message(text=product_detail,
-                     chat_id=user_id,
-                     )
+    product_info = get_product_info(product_detail)
+    image_url = get_img(access_token, product_detail)
+    bot.send_photo(photo=image_url,
+                   caption=product_info,
+                   chat_id=user_id,
+                   )
     return HANDLE_MENU
 
 

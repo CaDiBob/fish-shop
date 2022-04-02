@@ -15,6 +15,7 @@ from moltin import (get_products,
                     )
 
 HANDLE_MENU = 1
+HANDLE_DESCRIPTION = 2
 
 logger = logging.getLogger('bot')
 
@@ -38,7 +39,7 @@ def button(update, context):
     query.edit_message_text(text=f'Selected option: {query.data}')
 
 
-def start(update, context):
+def handle_menu(update, context):
     bot = context.bot
     user_id = update.effective_user.id
     context.user_data['user_id'] = user_id
@@ -47,10 +48,10 @@ def start(update, context):
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     bot.send_message(text='Please choose:', chat_id=user_id, reply_markup=reply_markup)
-    return HANDLE_MENU
+    return HANDLE_DESCRIPTION
 
 
-def handle_menu(update, context):
+def handle_description(update, context):
     bot = context.bot
     user_id = update.effective_user.id
     access_token = context.bot_data['access_token']
@@ -58,11 +59,19 @@ def handle_menu(update, context):
     product_detail = get_product_detail(access_token, product_id)
     product_info = get_product_info(product_detail)
     image_url = get_img(access_token, product_detail)
+    keyboard = [[InlineKeyboardButton('Назад', callback_data='Назад')]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     bot.send_photo(photo=image_url,
                    caption=product_info,
                    chat_id=user_id,
+                   reply_markup=reply_markup,
                    )
-    return HANDLE_MENU
+    return HANDLE_DESCRIPTION
+
+
+def test(update, context):
+    print('qqqqqqqq')
+    return HANDLE_DESCRIPTION
 
 
 def cancel(update, context):
@@ -101,11 +110,15 @@ def main():
     dispatcher.bot_data['access_token'] = access_token
     shop = ConversationHandler(
         entry_points=[
-            CommandHandler('start', start)
+            CommandHandler('start', handle_menu)
         ],
         states={
             HANDLE_MENU: [
                 CallbackQueryHandler(handle_menu),
+            ],
+            HANDLE_DESCRIPTION: [
+                CallbackQueryHandler(handle_menu, pattern=r'Назад'),
+                CallbackQueryHandler(handle_description),
             ]
         },
         fallbacks=[CommandHandler('cancel', cancel)],

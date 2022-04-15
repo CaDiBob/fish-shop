@@ -1,131 +1,154 @@
-import logging
+#!/usr/bin/env python
 import redis
-from environs import Env
-
 import telegram
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import Filters, Updater
-from telegram.ext import CommandHandler, MessageHandler, ConversationHandler, CallbackQueryHandler
+from environs import Env
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 
-from moltin import (get_products,
-                    get_moltin_access_token,
-                    get_product_detail,
-                    get_product_info,
-                    get_img
-                    )
+from telegram.ext import (
+    Updater,
+    ConversationHandler,
+    CommandHandler,
+    CallbackQueryHandler,
+)
 
-HANDLE_MENU = 1
-HANDLE_DESCRIPTION = 2
-
-logger = logging.getLogger('bot')
-
-
-class TelegramLogsHandler(logging.Handler):
-
-    def __init__(self, chat_id, bot):
-        super().__init__()
-        self.chat_id = chat_id
-        self.tg_bot = bot
-
-    def emit(self, record):
-        log_entry = self.format(record)
-        self.tg_bot.send_message(chat_id=self.chat_id, text=log_entry)
+from moltin import (
+    put_product_to_cart,
+    create_cart,
+    get_products,
+    get_moltin_access_token,
+    get_product_detail,
+    get_product_info,
+    get_cart_info,
+    get_img,
+)
 
 
-def button(update, context):
+HANDLE_MENU, HANDLE_DESCRIPTION = range(2)
 
-    query = update.callback_query
-    query.answer()
-    query.edit_message_text(text=f'Selected option: {query.data}')
+
+def test(update, context):
+    bot = context.bot
+    user_id = update.effective_user.id
+    keyboard = [
+        [InlineKeyboardButton('Назад', callback_data='Назад')],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    bot.send_message(
+        text='Test',
+        chat_id=user_id,
+        reply_markup=reply_markup,
+    )
+    return HANDLE_DESCRIPTION
 
 
 def handle_menu(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    context.user_data['user_id'] = user_id
     products = context.bot_data['products']
-    keyboard = [[InlineKeyboardButton(product['name'], callback_data=product['id']) for product in products['data']]]
-
+    access_token = context.bot_data['access_token']
+    db = context.bot_data['db']
+    if not db.get(user_id):
+        cart_id = create_cart(access_token, user_id)
+        db.set(user_id, cart_id)
+    cart_id = db.get(user_id)
+    context.user_data['cart_id'] = cart_id
+    keyboard = [[InlineKeyboardButton(
+        product['name'], callback_data=product['id']) for product in products['data']]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    bot.send_message(text='Please choose:', chat_id=user_id, reply_markup=reply_markup)
+    bot.send_message(
+        text=cart_id,
+        chat_id=user_id,
+        reply_markup=reply_markup)
     return HANDLE_DESCRIPTION
 
 
-def handle_description(update, context):
+def hendle_description(update, context):
     bot = context.bot
     user_id = update.effective_user.id
     access_token = context.bot_data['access_token']
     product_id = update.callback_query.data
+    context.user_data['product_id'] = product_id
     product_detail = get_product_detail(access_token, product_id)
     product_info = get_product_info(product_detail)
-    image_url = get_img(access_token, product_detail)
-    keyboard = [[InlineKeyboardButton('Назад', callback_data='Назад')]]
+    url_img = get_img(access_token, product_detail)
+    keyboard = [
+        [
+            InlineKeyboardButton('1 kg', callback_data='1'),
+            InlineKeyboardButton('5 kg', callback_data='5'),
+            InlineKeyboardButton('10 kg', callback_data='10'),
+        ],
+        [InlineKeyboardButton('Назад', callback_data='Назад')],
+        [InlineKeyboardButton('Test', callback_data='Test')],
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    bot.send_photo(photo=image_url,
-                   caption=product_info,
-                   chat_id=user_id,
-                   reply_markup=reply_markup,
-                   )
-    return HANDLE_DESCRIPTION
-
-
-def test(update, context):
-    print('qqqqqqqq')
-    return HANDLE_DESCRIPTION
-
-
-def cancel(update, context):
-    user = update.message.from_user
-    update.message.reply_text(
-        'Мое дело предложить - Ваше отказаться'
-        ' Будет скучно - пиши.',
-        reply_markup=ReplyKeyboardRemove()
+    bot.send_photo(
+        photo=url_img,
+        caption=product_info,
+        chat_id=user_id,
+        reply_markup=reply_markup,
     )
-    return ConversationHandler.END
+    bot.delete_message(
+        chat_id=update.callback_query.message.chat_id,
+        message_id=update.callback_query.message.message_id,
+    )
+    return HANDLE_DESCRIPTION
 
 
-def error(update, context):
-    logger.error(context.error)
+def add_product_to_cart(update, context):
+    access_token = context.bot_data['access_token']
+    cart_id = context.user_data['cart_id']
+    product_id = context.user_data['product_id']
+    quantity = int(update.callback_query.data)
+    put_product_to_cart(access_token, cart_id, product_id, quantity)
+    return HANDLE_DESCRIPTION
 
 
-def main():
+def button(update, context):
+    query = update.callback_query
+    query.answer()
+    query.edit_message_text(text=f"Selected option: {query.data}")
+
+
+def main() -> None:
     env = Env()
     env.read_env()
     db = redis.Redis(
         host=env('REDIS_HOST'),
-        port=env('REDIS_PORT'),
         password=env('REDIS_PASSWORD'),
+        port=env('REDIS_PORT'),
         decode_responses=True,
     )
-    client_id = env('MOLTIN_CLIENT_ID')
     tg_token = env('TG_TOKEN')
-    tg_chat_id = env('TG_CHAT_ID')
-    access_token = get_moltin_access_token(client_id)
+    moltin_client_token = env('MOLTIN_CLIENT_ID')
+    access_token = get_moltin_access_token(moltin_client_token)
     products = get_products(access_token)
+    bot = telegram.Bot(tg_token)
     updater = Updater(tg_token)
-    bot = telegram.Bot(token=tg_token)
-    logger.addHandler(TelegramLogsHandler(tg_chat_id, bot))
     dispatcher = updater.dispatcher
-    dispatcher.bot_data['products'] = products
     dispatcher.bot_data['access_token'] = access_token
-    shop = ConversationHandler(
-        entry_points=[
-            CommandHandler('start', handle_menu)
-        ],
+    dispatcher.bot_data['products'] = products
+    dispatcher.bot_data['db'] = db
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', handle_menu)],
         states={
             HANDLE_MENU: [
                 CallbackQueryHandler(handle_menu),
             ],
             HANDLE_DESCRIPTION: [
+                CallbackQueryHandler(test, pattern=r'Test'),
                 CallbackQueryHandler(handle_menu, pattern=r'Назад'),
-                CallbackQueryHandler(handle_description),
+                CallbackQueryHandler(add_product_to_cart, pattern=r'[0-9]'),
+                CallbackQueryHandler(hendle_description),
             ]
         },
-        fallbacks=[CommandHandler('cancel', cancel)],
+        fallbacks=[],
+        # name="my_conversation",
+        # persistent=True,
     )
-    dispatcher.add_handler(shop)
-
-    dispatcher.add_error_handler(error)
+    dispatcher.add_handler(conv_handler)
     updater.start_polling()
     updater.idle()
 

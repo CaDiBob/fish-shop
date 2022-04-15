@@ -98,11 +98,8 @@ def get_img(access_token, product_detail):
 def get_product_info(product_detail):
     price = product_detail['meta']['display_price']['with_tax']['formatted']
     title = product_detail['name']
-    amount = product_detail['meta']['stock']['level']
-    availability = product_detail['meta']['stock']['availability']
     description = product_detail['description']
-    return f'{title} {price} per kg'\
-        f'{amount} {availability} \n\n'\
+    return f'{title} {price} per kg\n\n'\
         f'{description}'
 
 
@@ -120,7 +117,7 @@ if __name__ == '__main__':
     pprint(get_cart_info(
         access_token,
         cart_id='4c572813-70ce-43da-bfed-e6fb965130d0',
-        )
+    )
     )
     # products = get_products(access_token)
     # pprint(products['data'][0])

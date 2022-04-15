@@ -22,26 +22,12 @@ from moltin import (
     get_product_detail,
     get_product_info,
     get_cart_info,
+    get_cart_sum,
     get_img,
 )
 
 
 HANDLE_MENU, HANDLE_DESCRIPTION = range(2)
-
-
-def test(update, context):
-    bot = context.bot
-    user_id = update.effective_user.id
-    keyboard = [
-        [InlineKeyboardButton('Назад', callback_data='Назад')],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    bot.send_message(
-        text='Test',
-        chat_id=user_id,
-        reply_markup=reply_markup,
-    )
-    return HANDLE_DESCRIPTION
 
 
 def handle_menu(update, context):
@@ -55,8 +41,11 @@ def handle_menu(update, context):
         db.set(user_id, cart_id)
     cart_id = db.get(user_id)
     context.user_data['cart_id'] = cart_id
-    keyboard = [[InlineKeyboardButton(
-        product['name'], callback_data=product['id']) for product in products['data']]]
+    keyboard = [
+        [InlineKeyboardButton(
+            product['name'], callback_data=product['id']) for product in products['data']],
+        [InlineKeyboardButton('Корзина', callback_data='Корзина')],
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     bot.send_message(
         text=cart_id,
@@ -81,7 +70,7 @@ def hendle_description(update, context):
             InlineKeyboardButton('10 kg', callback_data='10'),
         ],
         [InlineKeyboardButton('Назад', callback_data='Назад')],
-        [InlineKeyboardButton('Test', callback_data='Test')],
+        [InlineKeyboardButton('Корзина', callback_data='Корзина')],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     bot.send_photo(
@@ -104,6 +93,19 @@ def add_product_to_cart(update, context):
     quantity = int(update.callback_query.data)
     put_product_to_cart(access_token, cart_id, product_id, quantity)
     return HANDLE_DESCRIPTION
+
+
+def cart_info(update, context):
+    bot = context.bot
+    user_id = update.effective_user.id
+    access_token = context.bot_data['access_token']
+    cart_id = context.user_data['cart_id']
+    cart_info = get_cart_info(access_token, cart_id)
+    cart_sum = get_cart_sum(access_token, cart_id)
+    bot.send_message(
+        text=f'{cart_info}\n{cart_sum}',
+        chat_id=user_id,
+    )
 
 
 def button(update, context):
@@ -138,7 +140,7 @@ def main() -> None:
                 CallbackQueryHandler(handle_menu),
             ],
             HANDLE_DESCRIPTION: [
-                CallbackQueryHandler(test, pattern=r'Test'),
+                CallbackQueryHandler(cart_info, pattern=r'Корзина'),
                 CallbackQueryHandler(handle_menu, pattern=r'Назад'),
                 CallbackQueryHandler(add_product_to_cart, pattern=r'[0-9]'),
                 CallbackQueryHandler(hendle_description),

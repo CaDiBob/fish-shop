@@ -11,7 +11,35 @@ def get_cart_info(access_token, cart_id):
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     answer = response.json()['data']
-    return answer
+    products_info = get_product_cart_info(answer)
+    return products_info
+
+
+def get_product_cart_info(products):
+    products_info = str()
+    for product in products:
+        title = product['name']
+        price = product['meta']['display_price']['with_tax']['unit']['formatted']
+        quantity = product['quantity']
+        amount = product['meta']['display_price']['with_tax']['value']['formatted']
+        description = product['description']
+        products_info += f'{title} \n'\
+            f'{description}\n'\
+            f'{price} per kg \n'\
+            f'{quantity} kg in cart for {amount}\n\n'
+    return products_info
+
+
+def get_cart_sum(access_token, cart_id):
+    url = f'https://api.moltin.com/v2/carts/{cart_id}'
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+    }
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    answer = response.json()['data']
+    total_price = answer['meta']['display_price']['with_tax']['formatted']
+    return f'Total: {total_price}'
 
 
 def put_product_to_cart(access_token, cart_id, product_id, quantity):
@@ -119,6 +147,11 @@ if __name__ == '__main__':
         cart_id='4c572813-70ce-43da-bfed-e6fb965130d0',
     )
     )
+    # pprint(get_cart_sum(
+    #     access_token,
+    #     cart_id='4c572813-70ce-43da-bfed-e6fb965130d0',
+    # )
+    # )
     # products = get_products(access_token)
     # pprint(products['data'][0])
     # for product in products['data']:

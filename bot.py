@@ -19,6 +19,7 @@ from telegram.ext import (
 
 from moltin import (
     create_cart,
+    create_customer,
     get_products,
     get_moltin_access_token,
     get_product_detail,
@@ -32,7 +33,7 @@ from moltin import (
 )
 
 
-HANDLE_MENU, HANDLE_DESCRIPTION, HANDLE_CART,  WAITING_EMAIL = range(4)
+HANDLE_MENU, HANDLE_DESCRIPTION, HANDLE_CART, WAITING_EMAIL = range(4)
 
 
 def handle_menu(update, context):
@@ -53,9 +54,10 @@ def handle_menu(update, context):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     bot.send_message(
-        text=cart_id,
+        text='Добро пожаловать в наш магазин "Вкусная рыбка"',
         chat_id=user_id,
-        reply_markup=reply_markup)
+        reply_markup=reply_markup,
+    )
     return HANDLE_DESCRIPTION
 
 
@@ -140,10 +142,6 @@ def cart_info(update, context):
         chat_id=user_id,
         reply_markup=reply_markup,
     )
-    bot.delete_message(
-        chat_id=update.callback_query.message.chat_id,
-        message_id=update.callback_query.message.message_id,
-    )
     return HANDLE_CART
 
 
@@ -163,10 +161,6 @@ def remove_item(update, context):
         text=f'Товар {title} удален из корзины',
         chat_id=user_id,
         reply_markup=reply_markup,
-    )
-    bot.delete_message(
-        chat_id=update.callback_query.message.chat_id,
-        message_id=update.callback_query.message.message_id,
     )
     return HANDLE_CART
 
@@ -188,14 +182,51 @@ def waiting_email(update, context):
     )
     return WAITING_EMAIL
 
+
 def check_email(update, context):
     bot = context.bot
     user_id = update.effective_user.id
     email = update.message.text
+    context.user_data['email'] = email
+    keyboard = [
+        [InlineKeyboardButton('Верно', callback_data='Верно')],
+        [InlineKeyboardButton('Ввести снова', callback_data='Ввести снова')],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     bot.send_message(
-        text=f'Вы прислали мне эту почту: {email}',
+        text=f'Вы ввели: {email}',
         chat_id=user_id,
+        reply_markup=reply_markup,
     )
+    WAITING_EMAIL
+
+
+def save_customer(update, context):
+    bot = context.bot
+    user_id = update.effective_user.id
+    access_token = context.bot_data['access_token']
+    db = context.bot_data['db']
+    email = context.user_data['email']
+    keyboard = [
+        [InlineKeyboardButton('В меню', callback_data='В меню')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    if not db.get(email):
+        customer_id = create_customer(access_token, email)['id']
+        db.set(email, customer_id)
+    bot.send_message(
+        text='Спасибо! Мы скоро свяжемся с вами.',
+        chat_id=user_id,
+        reply_markup=reply_markup,
+    )
+    return HANDLE_MENU
+
+
+def cancel(update, context):
+    update.message.reply_text(
+        'До свиданья! Мы всегда рады вам.'
+    )
+    return ConversationHandler.END
 
 
 def main() -> None:
@@ -237,13 +268,14 @@ def main() -> None:
             ],
             WAITING_EMAIL: [
                 MessageHandler(Filters.text & ~Filters.command, check_email),
+                CallbackQueryHandler(waiting_email, pattern=r'Ввести снова'),
+                CallbackQueryHandler(save_customer, pattern=r'Верно'),
                 CallbackQueryHandler(cart_info, pattern=r'Корзина'),
                 CallbackQueryHandler(handle_menu, pattern=r'В меню'),
             ],
         },
-        fallbacks=[],
-        # name="my_conversation",
-        # persistent=True,
+        fallbacks=[CommandHandler('cancel', cancel)],
+        allow_reentry=True,
     )
     dispatcher.add_handler(conv_handler)
     updater.start_polling()

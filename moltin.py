@@ -35,8 +35,8 @@ def get_cart_info_products(products):
         description = product['description']
         products_info += f'{title} \n'\
             f'{description}\n'\
-            f'{price} per kg \n'\
-            f'{quantity} kg in cart for {amount}\n\n'
+            f'{price} за кг. \n'\
+            f'{quantity} кг. {amount}\n\n'
     return products_info
 
 
@@ -49,7 +49,7 @@ def get_cart_sum(access_token, cart_id):
     response.raise_for_status()
     answer = response.json()['data']
     total_price = answer['meta']['display_price']['with_tax']['formatted']
-    return f'Total: {total_price}'
+    return f'Общая сумма товаров: {total_price}'
 
 
 def put_product_to_cart(access_token, cart_id, product_id, quantity):
@@ -137,7 +137,7 @@ def get_product_info(product_detail):
     price = product_detail['meta']['display_price']['with_tax']['formatted']
     title = product_detail['name']
     description = product_detail['description']
-    return f'{title} {price} per kg\n\n'\
+    return f'{title} {price} за кг.\n\n'\
         f'{description}'
 
 

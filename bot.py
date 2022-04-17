@@ -224,7 +224,7 @@ def save_customer(update, context):
 
 def cancel(update, context):
     update.message.reply_text(
-        'До свиданья! Мы всегда рады вам.'
+        'До свидания! Мы всегда рады вам.'
     )
     return ConversationHandler.END
 

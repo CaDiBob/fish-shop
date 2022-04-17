@@ -9,10 +9,12 @@ from telegram import (
 )
 
 from telegram.ext import (
-    Updater,
     ConversationHandler,
     CommandHandler,
     CallbackQueryHandler,
+    Filters,
+    MessageHandler,
+    Updater,
 )
 
 from moltin import (
@@ -30,7 +32,7 @@ from moltin import (
 )
 
 
-HANDLE_MENU, HANDLE_DESCRIPTION, HANDLE_CART = range(3)
+HANDLE_MENU, HANDLE_DESCRIPTION, HANDLE_CART,  WAITING_EMAIL = range(4)
 
 
 def handle_menu(update, context):
@@ -124,6 +126,11 @@ def cart_info(update, context):
             InlineKeyboardButton(
                 'В меню',
                 callback_data='В меню',
+            ),
+
+            InlineKeyboardButton(
+                'Оплатить',
+                callback_data='Оплатить'
             )
         ]
     )
@@ -132,6 +139,10 @@ def cart_info(update, context):
         text=f'{cart_info}\n{cart_sum}',
         chat_id=user_id,
         reply_markup=reply_markup,
+    )
+    bot.delete_message(
+        chat_id=update.callback_query.message.chat_id,
+        message_id=update.callback_query.message.message_id,
     )
     return HANDLE_CART
 
@@ -153,7 +164,38 @@ def remove_item(update, context):
         chat_id=user_id,
         reply_markup=reply_markup,
     )
+    bot.delete_message(
+        chat_id=update.callback_query.message.chat_id,
+        message_id=update.callback_query.message.message_id,
+    )
     return HANDLE_CART
+
+
+def waiting_email(update, context):
+    bot = context.bot
+    user_id = update.effective_user.id
+    keyboard = [
+        [InlineKeyboardButton('Корзина', callback_data='Корзина')],
+        [InlineKeyboardButton('В меню', callback_data='В меню')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    bot.send_message(
+        text='''
+        Введите ваш email наш специалист свяжется с вами
+        ''',
+        chat_id=user_id,
+        reply_markup=reply_markup,
+    )
+    return WAITING_EMAIL
+
+def check_email(update, context):
+    bot = context.bot
+    user_id = update.effective_user.id
+    email = update.message.text
+    bot.send_message(
+        text=f'Вы прислали мне эту почту: {email}',
+        chat_id=user_id,
+    )
 
 
 def main() -> None:
@@ -189,8 +231,14 @@ def main() -> None:
             ],
             HANDLE_CART: [
                 CallbackQueryHandler(cart_info, pattern=r'Корзина'),
+                CallbackQueryHandler(waiting_email, pattern=r'Оплатить'),
                 CallbackQueryHandler(handle_menu, pattern=r'В меню'),
                 CallbackQueryHandler(remove_item),
+            ],
+            WAITING_EMAIL: [
+                MessageHandler(Filters.text & ~Filters.command, check_email),
+                CallbackQueryHandler(cart_info, pattern=r'Корзина'),
+                CallbackQueryHandler(handle_menu, pattern=r'В меню'),
             ],
         },
         fallbacks=[],

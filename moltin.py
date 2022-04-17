@@ -1,6 +1,5 @@
 import requests
 from environs import Env
-from pprint import pprint
 
 
 def create_customer(access_token, email):

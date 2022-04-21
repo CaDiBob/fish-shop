@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from unicodedata import name
+import logging
 import redis
 import telegram
 from environs import Env
@@ -34,6 +34,21 @@ from moltin import (
 
 
 HANDLE_MENU, HANDLE_DESCRIPTION, HANDLE_CART, WAITING_EMAIL = range(4)
+
+
+logger = logging.getLogger('bot')
+
+
+class TelegramLogsHandler(logging.Handler):
+
+    def __init__(self, chat_id, bot):
+        super().__init__()
+        self.chat_id = chat_id
+        self.tg_bot = bot
+
+    def emit(self, record):
+        log_entry = self.format(record)
+        self.tg_bot.send_message(chat_id=self.chat_id, text=log_entry)
 
 
 def handle_menu(update, context):
@@ -229,6 +244,10 @@ def cancel(update, context):
     return ConversationHandler.END
 
 
+def error(update, context):
+    logger.error(context.error)
+
+
 def main() -> None:
     env = Env()
     env.read_env()
@@ -239,11 +258,13 @@ def main() -> None:
         decode_responses=True,
     )
     tg_token = env('TG_TOKEN')
+    tg_chat_id = env('TG_CHAT_ID')
     moltin_client_token = env('MOLTIN_CLIENT_ID')
     access_token = get_moltin_access_token(moltin_client_token)
     products = get_products(access_token)
     bot = telegram.Bot(tg_token)
     updater = Updater(tg_token)
+    logger.addHandler(TelegramLogsHandler(tg_chat_id, bot))
     dispatcher = updater.dispatcher
     dispatcher.bot_data['access_token'] = access_token
     dispatcher.bot_data['products'] = products
@@ -278,6 +299,7 @@ def main() -> None:
         allow_reentry=True,
     )
     dispatcher.add_handler(conv_handler)
+    dispatcher.add_error_handler(error)
     updater.start_polling()
     updater.idle()
 

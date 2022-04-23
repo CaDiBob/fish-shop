@@ -103,11 +103,12 @@ def create_cart(access_token, user_id):
     return answer
 
 
-def get_moltin_access_token(client_id):
+def get_moltin_access_token(client_id, client_secret):
     url = 'https://api.moltin.com/oauth/access_token'
     data = {
         'client_id': client_id,
-        'grant_type': 'implicit',
+        'client_secret': client_secret,
+        'grant_type': 'client_credentials',
     }
     response = requests.post(url, data=data)
     response.raise_for_status()

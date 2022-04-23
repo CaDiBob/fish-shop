@@ -260,7 +260,10 @@ def main() -> None:
     tg_token = env('TG_TOKEN')
     tg_chat_id = env('TG_CHAT_ID')
     moltin_client_token = env('MOLTIN_CLIENT_ID')
-    access_token = get_moltin_access_token(moltin_client_token)
+    moltin_client_secret = env('MOLTIN_CLIENT_SECRET')
+    access_token = get_moltin_access_token(
+        moltin_client_token, moltin_client_secret
+    )
     products = get_products(access_token)
     bot = telegram.Bot(tg_token)
     updater = Updater(tg_token)

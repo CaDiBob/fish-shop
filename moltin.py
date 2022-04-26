@@ -1,4 +1,5 @@
 import requests
+import textwrap as tw
 from environs import Env
 
 
@@ -50,10 +51,12 @@ def get_cart_info_products(products):
         quantity = product['quantity']
         amount = product['meta']['display_price']['with_tax']['value']['formatted']
         description = product['description']
-        products_info += f'{title} \n'\
-            f'{description}\n'\
-            f'{price} за кг. \n'\
-            f'{quantity} кг. {amount}\n\n'
+        products_info += tw.dedent(f'''
+        {title}
+        {description}
+        {price} за кг.
+        {quantity} кг. {amount}
+        ''')
     return products_info
 
 
@@ -155,5 +158,8 @@ def get_product_info(product_detail):
     price = product_detail['meta']['display_price']['with_tax']['formatted']
     title = product_detail['name']
     description = product_detail['description']
-    return f'{title} {price} за кг.\n\n'\
-        f'{description}'
+    return tw.dedent(f'''
+    {title} {price} за кг.
+
+    {description}
+    ''')

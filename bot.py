@@ -54,8 +54,12 @@ class TelegramLogsHandler(logging.Handler):
 def handle_menu(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    products = context.bot_data['products']
-    access_token = context.bot_data['access_token']
+    moltin_client_secret = context.bot_data['moltin_client_secret']
+    moltin_client_id = context.bot_data['moltin_client_id']
+    access_token = get_moltin_access_token(
+        moltin_client_id, moltin_client_secret
+    )
+    products = get_products(access_token)
     db = context.bot_data['db']
     if not db.get(user_id):
         cart_id = create_cart(access_token, user_id)
@@ -79,7 +83,11 @@ def handle_menu(update, context):
 def hendle_description(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    access_token = context.bot_data['access_token']
+    moltin_client_secret = context.bot_data['moltin_client_secret']
+    moltin_client_id = context.bot_data['moltin_client_id']
+    access_token = get_moltin_access_token(
+        moltin_client_id, moltin_client_secret
+    )
     product_id = update.callback_query.data
     context.user_data['product_id'] = product_id
     product_detail = get_product_detail(access_token, product_id)
@@ -109,7 +117,11 @@ def hendle_description(update, context):
 
 
 def add_product_to_cart(update, context):
-    access_token = context.bot_data['access_token']
+    moltin_client_secret = context.bot_data['moltin_client_secret']
+    moltin_client_id = context.bot_data['moltin_client_id']
+    access_token = get_moltin_access_token(
+        moltin_client_id, moltin_client_secret
+    )
     cart_id = context.user_data['cart_id']
     product_id = context.user_data['product_id']
     quantity = int(update.callback_query.data)
@@ -120,7 +132,11 @@ def add_product_to_cart(update, context):
 def cart_info(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    access_token = context.bot_data['access_token']
+    moltin_client_secret = context.bot_data['moltin_client_secret']
+    moltin_client_id = context.bot_data['moltin_client_id']
+    access_token = get_moltin_access_token(
+        moltin_client_id, moltin_client_secret
+    )
     cart_id = context.user_data['cart_id']
     cart_products = get_cart_products(access_token, cart_id)
     cart_info = get_cart_info_products(cart_products)
@@ -163,7 +179,11 @@ def cart_info(update, context):
 def remove_item(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    access_token = context.bot_data['access_token']
+    moltin_client_secret = context.bot_data['moltin_client_secret']
+    moltin_client_id = context.bot_data['moltin_client_id']
+    access_token = get_moltin_access_token(
+        moltin_client_id, moltin_client_secret
+    )
     cart_id = context.user_data['cart_id']
     product_id = update.callback_query.data
     title = context.user_data['title']
@@ -219,7 +239,11 @@ def check_email(update, context):
 def save_customer(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    access_token = context.bot_data['access_token']
+    moltin_client_secret = context.bot_data['moltin_client_secret']
+    moltin_client_id = context.bot_data['moltin_client_id']
+    access_token = get_moltin_access_token(
+        moltin_client_id, moltin_client_secret
+    )
     db = context.bot_data['db']
     email = context.user_data['email']
     keyboard = [
@@ -259,18 +283,14 @@ def main() -> None:
     )
     tg_token = env('TG_TOKEN')
     tg_chat_id = env('TG_CHAT_ID')
-    moltin_client_token = env('MOLTIN_CLIENT_ID')
+    moltin_client_id = env('MOLTIN_CLIENT_ID')
     moltin_client_secret = env('MOLTIN_CLIENT_SECRET')
-    access_token = get_moltin_access_token(
-        moltin_client_token, moltin_client_secret
-    )
-    products = get_products(access_token)
     bot = telegram.Bot(tg_token)
     updater = Updater(tg_token)
     logger.addHandler(TelegramLogsHandler(tg_chat_id, bot))
     dispatcher = updater.dispatcher
-    dispatcher.bot_data['access_token'] = access_token
-    dispatcher.bot_data['products'] = products
+    dispatcher.bot_data['moltin_client_id'] = moltin_client_id
+    dispatcher.bot_data['moltin_client_secret'] = moltin_client_secret
     dispatcher.bot_data['db'] = db
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', handle_menu)],

@@ -163,3 +163,11 @@ def get_product_info(product_detail):
 
     {description}
     ''')
+
+def update_token(context):
+    moltin_client_secret = context.bot_data['moltin_client_secret']
+    moltin_client_id = context.bot_data['moltin_client_id']
+    access_token = get_moltin_access_token(
+        moltin_client_id, moltin_client_secret,
+    )
+    context.bot_data['access_token'] = access_token

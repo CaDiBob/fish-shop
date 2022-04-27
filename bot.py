@@ -21,7 +21,6 @@ from moltin import (
     create_cart,
     create_customer,
     get_products,
-    get_moltin_access_token,
     get_product_detail,
     get_product_info,
     get_cart_products,
@@ -30,6 +29,7 @@ from moltin import (
     get_img,
     put_product_to_cart,
     remove_cart_item,
+    update_token,
 )
 
 
@@ -54,11 +54,7 @@ class TelegramLogsHandler(logging.Handler):
 def handle_menu(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    moltin_client_secret = context.bot_data['moltin_client_secret']
-    moltin_client_id = context.bot_data['moltin_client_id']
-    access_token = get_moltin_access_token(
-        moltin_client_id, moltin_client_secret
-    )
+    access_token = context.bot_data['access_token']
     products = get_products(access_token)
     db = context.bot_data['db']
     if not db.get(user_id):
@@ -83,11 +79,7 @@ def handle_menu(update, context):
 def hendle_description(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    moltin_client_secret = context.bot_data['moltin_client_secret']
-    moltin_client_id = context.bot_data['moltin_client_id']
-    access_token = get_moltin_access_token(
-        moltin_client_id, moltin_client_secret
-    )
+    access_token = context.bot_data['access_token']
     product_id = update.callback_query.data
     context.user_data['product_id'] = product_id
     product_detail = get_product_detail(access_token, product_id)
@@ -117,11 +109,7 @@ def hendle_description(update, context):
 
 
 def add_product_to_cart(update, context):
-    moltin_client_secret = context.bot_data['moltin_client_secret']
-    moltin_client_id = context.bot_data['moltin_client_id']
-    access_token = get_moltin_access_token(
-        moltin_client_id, moltin_client_secret
-    )
+    access_token = context.bot_data['access_token']
     cart_id = context.user_data['cart_id']
     product_id = context.user_data['product_id']
     quantity = int(update.callback_query.data)
@@ -132,11 +120,7 @@ def add_product_to_cart(update, context):
 def cart_info(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    moltin_client_secret = context.bot_data['moltin_client_secret']
-    moltin_client_id = context.bot_data['moltin_client_id']
-    access_token = get_moltin_access_token(
-        moltin_client_id, moltin_client_secret
-    )
+    access_token = context.bot_data['access_token']
     cart_id = context.user_data['cart_id']
     cart_products = get_cart_products(access_token, cart_id)
     cart_info = get_cart_info_products(cart_products)
@@ -179,11 +163,7 @@ def cart_info(update, context):
 def remove_item(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    moltin_client_secret = context.bot_data['moltin_client_secret']
-    moltin_client_id = context.bot_data['moltin_client_id']
-    access_token = get_moltin_access_token(
-        moltin_client_id, moltin_client_secret
-    )
+    access_token = context.bot_data['access_token']
     cart_id = context.user_data['cart_id']
     product_id = update.callback_query.data
     title = context.user_data['title']
@@ -239,11 +219,7 @@ def check_email(update, context):
 def save_customer(update, context):
     bot = context.bot
     user_id = update.effective_user.id
-    moltin_client_secret = context.bot_data['moltin_client_secret']
-    moltin_client_id = context.bot_data['moltin_client_id']
-    access_token = get_moltin_access_token(
-        moltin_client_id, moltin_client_secret
-    )
+    access_token = context.bot_data['access_token']
     db = context.bot_data['db']
     email = context.user_data['email']
     keyboard = [
@@ -272,7 +248,7 @@ def error(update, context):
     logger.error(context.error)
 
 
-def main() -> None:
+def main():
     env = Env()
     env.read_env()
     db = redis.Redis(
@@ -287,6 +263,7 @@ def main() -> None:
     moltin_client_secret = env('MOLTIN_CLIENT_SECRET')
     bot = telegram.Bot(tg_token)
     updater = Updater(tg_token)
+    job = updater.job_queue
     logger.addHandler(TelegramLogsHandler(tg_chat_id, bot))
     dispatcher = updater.dispatcher
     dispatcher.bot_data['moltin_client_id'] = moltin_client_id
@@ -323,6 +300,7 @@ def main() -> None:
     )
     dispatcher.add_handler(conv_handler)
     dispatcher.add_error_handler(error)
+    job.run_repeating(update_token, interval=1200, first=1) # Интервал в секундах, вызова функции обновления токена, начиная с первой секунды
     updater.start_polling()
     updater.idle()
 

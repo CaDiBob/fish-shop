@@ -1,6 +1,5 @@
 import requests
 import textwrap as tw
-from environs import Env
 
 
 def create_customer(access_token, email):
@@ -163,6 +162,7 @@ def get_product_info(product_detail):
 
     {description}
     ''')
+
 
 def update_token(context):
     moltin_client_secret = context.bot_data['moltin_client_secret']
